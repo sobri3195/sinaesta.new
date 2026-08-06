@@ -11,6 +11,9 @@ dimulai setelah dokumen dasar disetujui sesuai *documentation gate* di
   kriteria kesiapan implementasi.
 - [`docs/LEGACY_CODE_AUDIT.md`](docs/LEGACY_CODE_AUDIT.md) — hasil pemeriksaan
   kondisi kode awal dan daftar pekerjaan teknis yang perlu ditindaklanjuti.
+- [`docs/03-orchestrator.md`](docs/03-orchestrator.md) sampai
+  [`docs/15-workflow.md`](docs/15-workflow.md) — mandat agent, komunikasi,
+  project memory, serta quality gate pengembangan dan rilis.
 
 ## Status saat ini
 
