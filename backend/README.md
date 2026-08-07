@@ -8,7 +8,7 @@ PDO, opaque session token, dan middleware keamanan tanpa framework backend.
 ```bash
 composer install
 cp .env.example .env
-# buat database lalu terapkan migrations/001_create_authentication_tables.sql
+# buat database lalu terapkan migrations/001, 002, dan 003 secara berurutan
 php -S 127.0.0.1:8080 -t public public/index.php
 ```
 
@@ -21,6 +21,8 @@ sementara; production wajib mengirimkannya melalui mail provider.
 
 - Jalankan purge berkala untuk session/token/rate limit kedaluwarsa dan perbarui
   berkas `CRON_HEARTBEAT_FILE` paling lambat setiap 15 menit.
+- Jalankan `php bin/auto-submit-attempts.php` setiap menit agar attempt kedaluwarsa
+  dinilai dari snapshot server. Job aman dijalankan ulang.
 - Set `AUTH_USE_COOKIE=true`, `AUTH_COOKIE_SECURE=true`, domain cookie yang tepat,
   serta origin CORS eksplisit di production. Klien cookie wajib mengirim pasangan
   cookie/header CSRF.
