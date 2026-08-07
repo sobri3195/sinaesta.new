@@ -95,6 +95,14 @@ try {
         $router->get('/me/wrong-questions',[$assessments,'wrong'],$read);
         $router->get('/me/bookmarks',[$assessments,'bookmarks'],$read);
         $router->get('/me/practice-recommendations',[$learning,'recommendations'],$read);
+        $router->get('/me/mastery',[$learning,'mastery'],$read);
+        $router->get('/me/mastery/history',[$learning,'history'],$read);
+        $router->get('/me/weak-topics',[$learning,'weakTopics'],$read);
+        $router->get('/me/recommendations',[$learning,'recommendations'],$read);
+        $router->get('/me/review-queue',[$learning,'queue'],$read);
+        $router->get('/adaptive-practice',[$learning,'practice'],$read);
+        $router->get('/admin/adaptive-learning',[$learning,'settings'],[$auth,$active,new RoleMiddleware('admin')]);
+        $router->patch('/admin/adaptive-learning',[$learning,'updateSettings'],[$json,$auth,$active,new RoleMiddleware('admin'),$csrf]);
         $router->group('/auth', static function (Router $router) use ($controller, $auth, $active, $csrf, $json, $pdo): void {
             $router->post('/register', [$controller, 'register'], [$json]);
             $router->post('/login', [$controller, 'login'], [$json, new RateLimitMiddleware($pdo, 'login', 10, 900)]);
