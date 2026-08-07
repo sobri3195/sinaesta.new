@@ -2,6 +2,53 @@ openapi: 3.0.3
 info: {title: SINAESTA API, version: 1.0.0}
 servers: [{url: /api/v1}]
 paths:
+  /packages:
+    get: {summary: Daftar paket dan harga aktif dari database, responses: {'200': {description: Daftar paket}}}
+  /packages/{packageId}:
+    get:
+      summary: Detail paket
+      parameters: [{in: path, name: packageId, required: true, schema: {type: string}}]
+      responses: {'200': {description: Detail paket}, '404': {description: Paket tidak ditemukan}}
+  /checkout:
+    post:
+      summary: Buat transaksi dan invoice menggunakan harga server
+      security: [{sessionToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [package_id, gateway]
+              additionalProperties: false
+              properties: {package_id: {type: string}, price_id: {type: string}, voucher_code: {type: string}, gateway: {type: string, enum: [local]}}
+      responses: {'201': {description: Invoice dibuat}, '422': {description: Paket, harga, atau voucher tidak valid}}
+  /transactions:
+    get: {summary: Daftar transaksi pengguna, security: [{sessionToken: []}], responses: {'200': {description: Daftar transaksi}}}
+  /transactions/{transactionId}:
+    get:
+      summary: Detail transaksi milik pengguna
+      security: [{sessionToken: []}]
+      parameters: [{in: path, name: transactionId, required: true, schema: {type: string}}]
+      responses: {'200': {description: Detail transaksi}, '404': {description: Tidak ditemukan}}
+  /invoices/{invoiceId}:
+    get:
+      summary: Detail invoice milik pengguna
+      security: [{sessionToken: []}]
+      parameters: [{in: path, name: invoiceId, required: true, schema: {type: string}}]
+      responses: {'200': {description: Detail invoice}, '404': {description: Tidak ditemukan}}
+  /me/subscription:
+    get: {summary: Subscription aktif, security: [{sessionToken: []}], responses: {'200': {description: Subscription atau null}}}
+  /me/entitlements:
+    get: {summary: Entitlement aktif, security: [{sessionToken: []}], responses: {'200': {description: Daftar entitlement}}}
+  /me/usage:
+    get: {summary: Pemakaian entitlement periode aktif, security: [{sessionToken: []}], responses: {'200': {description: Daftar penggunaan}}}
+  /payments/webhook/{gateway}:
+    post:
+      summary: Webhook pembayaran bertanda tangan dan idempotent
+      parameters: [{in: path, name: gateway, required: true, schema: {type: string}}, {in: header, name: X-Payment-Signature, required: true, schema: {type: string}}, {in: header, name: X-Payment-Timestamp, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object}}}}
+      responses: {'200': {description: Diproses atau replay aman}, '401': {description: Signature tidak valid}, '422': {description: Data pembayaran tidak cocok}}
   /admin/questions:
     get:
       summary: Daftar soal admin

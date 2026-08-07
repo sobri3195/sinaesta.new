@@ -4,6 +4,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 use Sinaesta\Shared\Http\Request; use Sinaesta\Shared\Http\Response; use Sinaesta\Shared\Http\Router;
 use Sinaesta\QuestionBank\Application\QuestionValidator; use Sinaesta\QuestionBank\Http\ParticipantQuestionResource;
 use Sinaesta\Assessment\Application\ScoringService;
+use Sinaesta\Billing\Infrastructure\LocalPaymentGateway;
 $failures=[];
 $assert=static function(bool $condition,string $message) use (&$failures): void { if(!$condition)$failures[]=$message; };
 $router=new Router();
@@ -28,4 +29,8 @@ $assert(!str_contains($encoded,'is_correct')&&!str_contains($encoded,'explanatio
 $score=(new ScoringService())->calculate([['selected_option_id'=>'a','correct_option_id'=>'a','topic'=>'T','category'=>'C','difficulty'=>'easy'],['selected_option_id'=>'b','correct_option_id'=>'c','topic'=>'T','category'=>'C','difficulty'=>'hard'],['selected_option_id'=>null,'correct_option_id'=>'d','topic'=>'U','category'=>'C','difficulty'=>'hard']],90);
 $assert($score['correct']===1&&$score['incorrect']===1&&$score['unanswered']===1&&$score['percentage_score']===33.33,'server scoring counts all answer states');
 $assert($score['average_time_seconds']===30.0&&count($score['analytics'])===5,'duration and dimension analytics are calculated');
-if($failures!==[]){foreach($failures as $failure)fwrite(STDERR,"FAIL: {$failure}\n");exit(1);} echo "10 tests passed\n";
+$gateway=new LocalPaymentGateway('test-secret','https://pay.test');
+$timestamp=(string)time();$body='{"event_id":"evt-1"}';$signature=hash_hmac('sha256',$timestamp.'.'.$body,'test-secret');
+$assert($gateway->verifyWebhook(['x-payment-timestamp'=>$timestamp,'x-payment-signature'=>$signature],$body),'payment webhook accepts a valid HMAC and timestamp');
+$assert(!$gateway->verifyWebhook(['x-payment-timestamp'=>$timestamp,'x-payment-signature'=>'invalid'],$body),'payment webhook rejects an invalid HMAC');
+if($failures!==[]){foreach($failures as $failure)fwrite(STDERR,"FAIL: {$failure}\n");exit(1);} echo "12 tests passed\n";

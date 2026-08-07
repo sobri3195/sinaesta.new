@@ -3,6 +3,11 @@
 declare(strict_types=1);
 
 use Sinaesta\Identity\Application\AuthService;
+use Sinaesta\Billing\Application\BillingService;
+use Sinaesta\Billing\Http\BillingController;
+use Sinaesta\Billing\Infrastructure\BillingRepository;
+use Sinaesta\Billing\Infrastructure\LocalPaymentGateway;
+use Sinaesta\Billing\Infrastructure\PaymentGatewayRegistry;
 use Sinaesta\Assessment\Application\AssessmentService;
 use Sinaesta\Assessment\Application\ScoringService;
 use Sinaesta\Assessment\Http\AssessmentController;
@@ -46,12 +51,26 @@ try {
     $participantQuestions = new ParticipantQuestionController($questionService);
     $questionImports = new QuestionImportController(new QuestionImportService($pdo, new QuestionRepository($pdo), new QuestionValidator()));
     $assessments = new AssessmentController(new AssessmentService(new AssessmentRepository($pdo), new ScoringService()));
+    $billingRepository = new BillingRepository($pdo);
+    $billing = new BillingController(new BillingService($billingRepository, new PaymentGatewayRegistry([
+        'local' => new LocalPaymentGateway((string) getenv('PAYMENT_WEBHOOK_SECRET'), (string) (getenv('PAYMENT_BASE_URL') ?: 'https://payments.example.test/pay')),
+    ])), $billingRepository);
     $router = new Router();
 
-    $router->group('/api/v1', static function (Router $router) use ($controller, $questions, $questionImports, $participantQuestions, $assessments, $health, $auth, $active, $csrf, $json, $pdo): void {
+    $router->group('/api/v1', static function (Router $router) use ($controller, $questions, $questionImports, $participantQuestions, $assessments, $billing, $health, $auth, $active, $csrf, $json, $pdo): void {
         $router->get('/health', [$health, 'health']);
         $router->get('/health/live', [$health, 'live']);
         $router->get('/health/ready', [$health, 'ready']);
+        $router->get('/packages', [$billing, 'packages']);
+        $router->get('/packages/{packageId}', [$billing, 'package']);
+        $router->post('/checkout', [$billing, 'checkout'], [$json,$auth,$active,$csrf]);
+        $router->get('/transactions', [$billing, 'transactions'], [$auth,$active]);
+        $router->get('/transactions/{transactionId}', [$billing, 'transaction'], [$auth,$active]);
+        $router->get('/invoices/{invoiceId}', [$billing, 'invoice'], [$auth,$active]);
+        $router->get('/me/subscription', [$billing, 'subscription'], [$auth,$active]);
+        $router->get('/me/entitlements', [$billing, 'entitlements'], [$auth,$active]);
+        $router->get('/me/usage', [$billing, 'usage'], [$auth,$active]);
+        $router->post('/payments/webhook/{gateway}', [$billing, 'webhook']);
         $router->get('/questions/{questionId}', [$participantQuestions, 'show'], [$auth, $active]);
         $read=[$auth,$active];$write=[$json,$auth,$active,$csrf];
         $router->get('/practice/config',[$assessments,'config'],$read);
