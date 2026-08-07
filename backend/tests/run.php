@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__) . '/vendor/autoload.php';
 use Sinaesta\Shared\Http\Request; use Sinaesta\Shared\Http\Response; use Sinaesta\Shared\Http\Router;
+use Sinaesta\QuestionBank\Application\QuestionValidator; use Sinaesta\QuestionBank\Http\ParticipantQuestionResource;
 $failures=[];
 $assert=static function(bool $condition,string $message) use (&$failures): void { if(!$condition)$failures[]=$message; };
 $router=new Router();
@@ -12,4 +13,15 @@ $assert($router->dispatch(new Request('DELETE','/api/v1/items/1'))->status===405
 $assert($router->dispatch(new Request('GET','/missing'))->status===404,'router returns 404 for unknown path');
 $error=Response::error('Validasi gagal',422,['email'=>['Email wajib diisi.']]);
 $assert($error->payload['success']===false && $error->payload['errors']['email'][0]==='Email wajib diisi.','error response follows envelope');
-if($failures!==[]){foreach($failures as $failure)fwrite(STDERR,"FAIL: {$failure}\n");exit(1);} echo "4 tests passed\n";
+$validator=new QuestionValidator();
+$valid=['stem'=>'Stem','learning_objective'=>'Objective','category_id'=>'category','topic_id'=>'topic','difficulty'=>'medium','options'=>[['content'=>'A','is_correct'=>true],['content'=>'B','is_correct'=>false]]];
+$assert($validator->validate($valid)===[],'valid single best answer passes validation');
+$invalid=$valid;$invalid['options']=[['content'=>' Same ','is_correct'=>true],['content'=>'same','is_correct'=>true]];
+$invalidErrors=$validator->validate($invalid);
+$assert(isset($invalidErrors['options'])&&count($invalidErrors['options'])===2,'duplicate options and multiple correct answers are rejected');
+$approvalErrors=$validator->validate($valid,true,true);
+$assert(isset($approvalErrors['main_explanation'],$approvalErrors['references']),'approval and publish requirements are enforced');
+$participant=ParticipantQuestionResource::from(['id'=>'q','question_type'=>'single_best_answer','stem'=>'S','clinical_vignette'=>null,'difficulty'=>'easy','main_explanation'=>'secret','options'=>[['id'=>'o','content'=>'A','is_correct'=>true,'explanation'=>'secret']],'media'=>[]]);
+$encoded=json_encode($participant,JSON_THROW_ON_ERROR);
+$assert(!str_contains($encoded,'is_correct')&&!str_contains($encoded,'explanation'),'participant resource omits answer key and explanations');
+if($failures!==[]){foreach($failures as $failure)fwrite(STDERR,"FAIL: {$failure}\n");exit(1);} echo "8 tests passed\n";

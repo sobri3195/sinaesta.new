@@ -1,0 +1,111 @@
+openapi: 3.0.3
+info: {title: SINAESTA API, version: 1.0.0}
+servers: [{url: /api/v1}]
+paths:
+  /admin/questions:
+    get:
+      summary: Daftar soal admin
+      security: [{sessionToken: []}]
+      parameters:
+        - {in: query, name: page, schema: {type: integer, minimum: 1}}
+        - {in: query, name: limit, schema: {type: integer, minimum: 1, maximum: 100}}
+        - {in: query, name: status, schema: {$ref: '#/components/schemas/QuestionStatus'}}
+      responses: {'200': {description: Daftar soal}}
+    post:
+      summary: Buat draft soal
+      security: [{sessionToken: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/QuestionInput'}}}}
+      responses: {'201': {description: Draft dibuat}, '422': {$ref: '#/components/responses/ValidationError'}}
+  /admin/questions/{questionId}:
+    parameters: [{$ref: '#/components/parameters/QuestionId'}]
+    get: {summary: Detail soal admin, security: [{sessionToken: []}], responses: {'200': {description: Detail soal}, '404': {description: Tidak ditemukan}}}
+    patch:
+      summary: Ubah draft atau buat versi baru dari soal published
+      security: [{sessionToken: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/QuestionInput'}}}}
+      responses: {'200': {description: Soal diperbarui}, '409': {description: Status tidak mengizinkan edit}, '422': {$ref: '#/components/responses/ValidationError'}}
+    delete: {summary: Arsipkan soal, security: [{sessionToken: []}], responses: {'204': {description: Soal diarsipkan}}}
+  /admin/questions/{questionId}/submit-review: {$ref: '#/components/pathItems/Workflow'}
+  /admin/questions/{questionId}/request-revision: {$ref: '#/components/pathItems/Workflow'}
+  /admin/questions/{questionId}/approve: {$ref: '#/components/pathItems/Workflow'}
+  /admin/questions/{questionId}/publish: {$ref: '#/components/pathItems/Workflow'}
+  /admin/questions/{questionId}/archive: {$ref: '#/components/pathItems/Workflow'}
+  /admin/questions/{questionId}/restore: {$ref: '#/components/pathItems/Workflow'}
+  /admin/questions/{questionId}/duplicate: {$ref: '#/components/pathItems/Workflow'}
+  /admin/questions/{questionId}/versions: {$ref: '#/components/pathItems/Related'}
+  /admin/questions/{questionId}/reviews: {$ref: '#/components/pathItems/Related'}
+  /admin/questions/{questionId}/history: {$ref: '#/components/pathItems/Related'}
+  /admin/question-imports/preview:
+    post:
+      summary: Upload CSV dan simpan preview tanpa mengimpor
+      security: [{sessionToken: []}]
+      parameters:
+        - {in: header, name: X-Filename, schema: {type: string}}
+        - {in: query, name: atomic, schema: {type: boolean, default: true}}
+      requestBody: {required: true, content: {text/csv: {schema: {type: string, format: binary}}}}
+      responses: {'201': {description: Preview dan error per row tersimpan}, '422': {$ref: '#/components/responses/ValidationError'}}
+  /admin/question-imports/{batchId}/confirm:
+    post:
+      summary: Konfirmasi dan impor batch dalam transaction
+      security: [{sessionToken: []}]
+      parameters: [{$ref: '#/components/parameters/BatchId'}]
+      requestBody: {content: {application/json: {schema: {type: object}}}}
+      responses: {'200': {description: Batch diimpor}, '409': {description: Batch telah diproses}, '422': {description: Batch atomic memiliki error}}
+  /questions/{questionId}:
+    get:
+      summary: Soal published untuk participant tanpa answer key atau explanation
+      security: [{sessionToken: []}]
+      parameters: [{$ref: '#/components/parameters/QuestionId'}]
+      responses: {'200': {description: Soal aman untuk attempt aktif}, '404': {description: Tidak published}}
+components:
+  securitySchemes:
+    sessionToken: {type: http, scheme: bearer}
+  parameters:
+    QuestionId: {in: path, name: questionId, required: true, schema: {type: string, format: uuid}}
+    BatchId: {in: path, name: batchId, required: true, schema: {type: string, format: uuid}}
+  pathItems:
+    Workflow:
+      parameters: [{$ref: '#/components/parameters/QuestionId'}]
+      post:
+        security: [{sessionToken: []}]
+        requestBody: {content: {application/json: {schema: {type: object, properties: {note: {type: string}}}}}}
+        responses: {'200': {description: Transisi berhasil}, '403': {description: Role atau separation of duties ditolak}, '409': {description: Transisi tidak valid}, '422': {$ref: '#/components/responses/ValidationError'}}
+    Related:
+      parameters: [{$ref: '#/components/parameters/QuestionId'}]
+      get: {security: [{sessionToken: []}], responses: {'200': {description: Koleksi terkait}}}
+  responses:
+    ValidationError: {description: Input tidak memenuhi invariant soal}
+  schemas:
+    QuestionStatus: {type: string, enum: [draft, in_review, revision, approved, published, archived]}
+    QuestionInput:
+      type: object
+      required: [stem, learning_objective, category_id, topic_id, difficulty, options]
+      properties:
+        question_type: {type: string, enum: [single_best_answer], default: single_best_answer}
+        stem: {type: string, minLength: 1}
+        clinical_vignette: {type: string, nullable: true}
+        main_explanation: {type: string, nullable: true}
+        learning_objective: {type: string, minLength: 1}
+        category_id: {type: string, format: uuid}
+        topic_id: {type: string, format: uuid}
+        difficulty: {type: string, enum: [easy, medium, hard]}
+        options:
+          type: array
+          minItems: 2
+          items:
+            type: object
+            required: [content, is_correct]
+            properties: {content: {type: string, minLength: 1}, is_correct: {type: boolean}, explanation: {type: string, nullable: true}}
+        references:
+          type: array
+          items:
+            type: object
+            required: [citation, year]
+            properties: {citation: {type: string}, year: {type: integer, minimum: 1800}, url: {type: string, format: uri, nullable: true}}
+        media:
+          type: array
+          items:
+            type: object
+            required: [storage_key, mime_type, alt_text]
+            properties: {storage_key: {type: string}, mime_type: {type: string, enum: [image/jpeg, image/png, image/webp, application/pdf]}, alt_text: {type: string}}
+        tag_ids: {type: array, items: {type: string, format: uuid}}

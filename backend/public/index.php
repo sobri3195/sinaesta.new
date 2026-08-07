@@ -5,6 +5,13 @@ declare(strict_types=1);
 use Sinaesta\Identity\Application\AuthService;
 use Sinaesta\Identity\Http\AuthController;
 use Sinaesta\Identity\Infrastructure\AuthRepository;
+use Sinaesta\QuestionBank\Application\QuestionService;
+use Sinaesta\QuestionBank\Application\QuestionImportService;
+use Sinaesta\QuestionBank\Application\QuestionValidator;
+use Sinaesta\QuestionBank\Http\QuestionController;
+use Sinaesta\QuestionBank\Http\ParticipantQuestionController;
+use Sinaesta\QuestionBank\Http\QuestionImportController;
+use Sinaesta\QuestionBank\Infrastructure\QuestionRepository;
 use Sinaesta\Shared\Http\HealthController;
 use Sinaesta\Shared\Http\HttpException;
 use Sinaesta\Shared\Http\Middleware\ActiveUserMiddleware;
@@ -13,6 +20,7 @@ use Sinaesta\Shared\Http\Middleware\CorsMiddleware;
 use Sinaesta\Shared\Http\Middleware\CsrfMiddleware;
 use Sinaesta\Shared\Http\Middleware\JsonMiddleware;
 use Sinaesta\Shared\Http\Middleware\RateLimitMiddleware;
+use Sinaesta\Shared\Http\Middleware\RoleMiddleware;
 use Sinaesta\Shared\Http\Request;
 use Sinaesta\Shared\Http\Response;
 use Sinaesta\Shared\Http\Router;
@@ -29,12 +37,17 @@ try {
     $cors = new CorsMiddleware();
     $controller = new AuthController(new AuthService($repository), $repository);
     $health = new HealthController($pdo);
+    $questionService = new QuestionService(new QuestionRepository($pdo), new QuestionValidator());
+    $questions = new QuestionController($questionService);
+    $participantQuestions = new ParticipantQuestionController($questionService);
+    $questionImports = new QuestionImportController(new QuestionImportService($pdo, new QuestionRepository($pdo), new QuestionValidator()));
     $router = new Router();
 
-    $router->group('/api/v1', static function (Router $router) use ($controller, $health, $auth, $active, $csrf, $json, $pdo): void {
+    $router->group('/api/v1', static function (Router $router) use ($controller, $questions, $questionImports, $participantQuestions, $health, $auth, $active, $csrf, $json, $pdo): void {
         $router->get('/health', [$health, 'health']);
         $router->get('/health/live', [$health, 'live']);
         $router->get('/health/ready', [$health, 'ready']);
+        $router->get('/questions/{questionId}', [$participantQuestions, 'show'], [$auth, $active]);
         $router->group('/auth', static function (Router $router) use ($controller, $auth, $active, $csrf, $json, $pdo): void {
             $router->post('/register', [$controller, 'register'], [$json]);
             $router->post('/login', [$controller, 'login'], [$json, new RateLimitMiddleware($pdo, 'login', 10, 900)]);
@@ -50,6 +63,27 @@ try {
             $router->get('/sessions', [$controller, 'sessions'], [$auth, $active]);
             $router->delete('/sessions/{sessionId}', [$controller, 'revokeSession'], $protected);
         });
+        $router->group('/admin/questions', static function (Router $router) use ($questions, $auth, $active, $csrf, $json): void {
+            $read = [$auth, $active];
+            $write = [$json, $auth, $active, $csrf];
+            $router->get('', [$questions, 'index'], $read);
+            $router->post('', [$questions, 'create'], $write);
+            $router->get('/{questionId}', [$questions, 'show'], $read);
+            $router->patch('/{questionId}', [$questions, 'update'], $write);
+            $router->delete('/{questionId}', [$questions, 'delete'], [$auth, $active, $csrf]);
+            $router->post('/{questionId}/submit-review', [$questions, 'submitReview'], $write);
+            $router->post('/{questionId}/request-revision', [$questions, 'requestRevision'], $write);
+            $router->post('/{questionId}/approve', [$questions, 'approve'], $write);
+            $router->post('/{questionId}/publish', [$questions, 'publish'], $write);
+            $router->post('/{questionId}/archive', [$questions, 'archive'], $write);
+            $router->post('/{questionId}/restore', [$questions, 'restore'], $write);
+            $router->post('/{questionId}/duplicate', [$questions, 'duplicate'], $write);
+            $router->get('/{questionId}/versions', [$questions, 'versions'], $read);
+            $router->get('/{questionId}/reviews', [$questions, 'reviews'], $read);
+            $router->get('/{questionId}/history', [$questions, 'history'], $read);
+        });
+        $router->post('/admin/question-imports/preview', [$questionImports, 'preview'], [$auth, $active, new RoleMiddleware('admin'), $csrf]);
+        $router->post('/admin/question-imports/{batchId}/confirm', [$questionImports, 'confirm'], [$json, $auth, $active, new RoleMiddleware('admin'), $csrf]);
     });
 
     $request = Request::fromGlobals()->withAttribute('request_id', $requestId);
