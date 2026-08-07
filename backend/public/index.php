@@ -14,6 +14,10 @@ use Sinaesta\Assessment\Http\AssessmentController;
 use Sinaesta\Assessment\Infrastructure\AssessmentRepository;
 use Sinaesta\Identity\Http\AuthController;
 use Sinaesta\Identity\Infrastructure\AuthRepository;
+use Sinaesta\Learning\Application\LearningService;
+use Sinaesta\Learning\Application\RecommendationScorer;
+use Sinaesta\Learning\Http\LearningController;
+use Sinaesta\Learning\Infrastructure\LearningRepository;
 use Sinaesta\QuestionBank\Application\QuestionService;
 use Sinaesta\QuestionBank\Application\QuestionImportService;
 use Sinaesta\QuestionBank\Application\QuestionValidator;
@@ -51,13 +55,14 @@ try {
     $participantQuestions = new ParticipantQuestionController($questionService);
     $questionImports = new QuestionImportController(new QuestionImportService($pdo, new QuestionRepository($pdo), new QuestionValidator()));
     $assessments = new AssessmentController(new AssessmentService(new AssessmentRepository($pdo), new ScoringService()));
+    $learning = new LearningController(new LearningService(new LearningRepository($pdo), new RecommendationScorer()));
     $billingRepository = new BillingRepository($pdo);
     $billing = new BillingController(new BillingService($billingRepository, new PaymentGatewayRegistry([
         'local' => new LocalPaymentGateway((string) getenv('PAYMENT_WEBHOOK_SECRET'), (string) (getenv('PAYMENT_BASE_URL') ?: 'https://payments.example.test/pay')),
     ])), $billingRepository);
     $router = new Router();
 
-    $router->group('/api/v1', static function (Router $router) use ($controller, $questions, $questionImports, $participantQuestions, $assessments, $billing, $health, $auth, $active, $csrf, $json, $pdo): void {
+    $router->group('/api/v1', static function (Router $router) use ($controller, $questions, $questionImports, $participantQuestions, $assessments, $learning, $billing, $health, $auth, $active, $csrf, $json, $pdo): void {
         $router->get('/health', [$health, 'health']);
         $router->get('/health/live', [$health, 'live']);
         $router->get('/health/ready', [$health, 'ready']);
@@ -89,6 +94,7 @@ try {
         $router->get('/me/analytics',[$assessments,'analytics'],$read);
         $router->get('/me/wrong-questions',[$assessments,'wrong'],$read);
         $router->get('/me/bookmarks',[$assessments,'bookmarks'],$read);
+        $router->get('/me/practice-recommendations',[$learning,'recommendations'],$read);
         $router->group('/auth', static function (Router $router) use ($controller, $auth, $active, $csrf, $json, $pdo): void {
             $router->post('/register', [$controller, 'register'], [$json]);
             $router->post('/login', [$controller, 'login'], [$json, new RateLimitMiddleware($pdo, 'login', 10, 900)]);
