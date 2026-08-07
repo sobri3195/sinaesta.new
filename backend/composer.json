@@ -1,0 +1,11 @@
+{
+  "name": "sinaesta/backend",
+  "description": "Native PHP API for SINAESTA",
+  "type": "project",
+  "require": { "php": "^8.2", "ext-pdo": "*", "ext-json": "*" },
+  "autoload": { "psr-4": { "Sinaesta\\": "src/" } },
+  "scripts": {
+    "lint": "find src public config tests -name '*.php' -print0 | xargs -0 -n1 php -l",
+    "test": "php tests/run.php"
+  }
+}
