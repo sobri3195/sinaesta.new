@@ -5,6 +5,7 @@ use Sinaesta\Shared\Http\Request; use Sinaesta\Shared\Http\Response; use Sinaest
 use Sinaesta\QuestionBank\Application\QuestionValidator; use Sinaesta\QuestionBank\Http\ParticipantQuestionResource;
 use Sinaesta\Assessment\Application\ScoringService;
 use Sinaesta\Billing\Infrastructure\LocalPaymentGateway;
+use Sinaesta\Learning\Application\RecommendationScorer;
 $failures=[];
 $assert=static function(bool $condition,string $message) use (&$failures): void { if(!$condition)$failures[]=$message; };
 $router=new Router();
@@ -33,4 +34,6 @@ $gateway=new LocalPaymentGateway('test-secret','https://pay.test');
 $timestamp=(string)time();$body='{"event_id":"evt-1"}';$signature=hash_hmac('sha256',$timestamp.'.'.$body,'test-secret');
 $assert($gateway->verifyWebhook(['x-payment-timestamp'=>$timestamp,'x-payment-signature'=>$signature],$body),'payment webhook accepts a valid HMAC and timestamp');
 $assert(!$gateway->verifyWebhook(['x-payment-timestamp'=>$timestamp,'x-payment-signature'=>'invalid'],$body),'payment webhook rejects an invalid HMAC');
-if($failures!==[]){foreach($failures as $failure)fwrite(STDERR,"FAIL: {$failure}\n");exit(1);} echo "12 tests passed\n";
+$recommendation=(new RecommendationScorer())->score(['attempts_count'=>4,'correct_count'=>1,'incorrect_count'=>3,'days_since_answered'=>45,'average_response_seconds'=>120]);
+$assert($recommendation['score']===80.0&&count($recommendation['reasons'])===4,'recommendation scoring combines weakness, recency, recurrence, and time rules');
+if($failures!==[]){foreach($failures as $failure)fwrite(STDERR,"FAIL: {$failure}\n");exit(1);} echo "13 tests passed\n";
