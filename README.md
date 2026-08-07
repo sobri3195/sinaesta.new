@@ -25,6 +25,7 @@ autentikasi di [`backend/`](backend/README.md). Modul bisnis lain tetap mengikut
 | Arsitektur dan kontrak API | Belum dimulai; menunggu PRD disetujui |
 | Fondasi backend dan autentikasi | Tersedia untuk pengujian integration |
 | Backend bisnis lainnya | Belum dimulai |
+| Frontend peserta dan admin | Fondasi tersedia di [`frontend/`](frontend/README.md) |
 
 > **Catatan:** Nama repositori belum cukup untuk menentukan domain bisnis secara
 > aman. PRD sengaja memisahkan fakta, asumsi, dan pertanyaan terbuka agar tim tidak
