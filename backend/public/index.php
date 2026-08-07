@@ -3,6 +3,10 @@
 declare(strict_types=1);
 
 use Sinaesta\Identity\Application\AuthService;
+use Sinaesta\Assessment\Application\AssessmentService;
+use Sinaesta\Assessment\Application\ScoringService;
+use Sinaesta\Assessment\Http\AssessmentController;
+use Sinaesta\Assessment\Infrastructure\AssessmentRepository;
 use Sinaesta\Identity\Http\AuthController;
 use Sinaesta\Identity\Infrastructure\AuthRepository;
 use Sinaesta\QuestionBank\Application\QuestionService;
@@ -41,13 +45,31 @@ try {
     $questions = new QuestionController($questionService);
     $participantQuestions = new ParticipantQuestionController($questionService);
     $questionImports = new QuestionImportController(new QuestionImportService($pdo, new QuestionRepository($pdo), new QuestionValidator()));
+    $assessments = new AssessmentController(new AssessmentService(new AssessmentRepository($pdo), new ScoringService()));
     $router = new Router();
 
-    $router->group('/api/v1', static function (Router $router) use ($controller, $questions, $questionImports, $participantQuestions, $health, $auth, $active, $csrf, $json, $pdo): void {
+    $router->group('/api/v1', static function (Router $router) use ($controller, $questions, $questionImports, $participantQuestions, $assessments, $health, $auth, $active, $csrf, $json, $pdo): void {
         $router->get('/health', [$health, 'health']);
         $router->get('/health/live', [$health, 'live']);
         $router->get('/health/ready', [$health, 'ready']);
         $router->get('/questions/{questionId}', [$participantQuestions, 'show'], [$auth, $active]);
+        $read=[$auth,$active];$write=[$json,$auth,$active,$csrf];
+        $router->get('/practice/config',[$assessments,'config'],$read);
+        $router->post('/practice/start',[$assessments,'startPractice'],$write);
+        $router->get('/tryouts',[$assessments,'tryouts'],$read);
+        $router->get('/tryouts/{tryoutId}',[$assessments,'tryout'],$read);
+        $router->post('/tryouts/{tryoutId}/start',[$assessments,'startTryout'],$write);
+        $router->get('/attempts/{attemptId}',[$assessments,'attempt'],$read);
+        $router->put('/attempts/{attemptId}/answers/{questionId}',[$assessments,'answer'],$write);
+        $router->post('/attempts/{attemptId}/flags/{questionId}',[$assessments,'addFlag'],$write);
+        $router->delete('/attempts/{attemptId}/flags/{questionId}',[$assessments,'removeFlag'],[$auth,$active,$csrf]);
+        $router->post('/attempts/{attemptId}/submit',[$assessments,'submit'],$write);
+        $router->get('/attempts/{attemptId}/result',[$assessments,'result'],$read);
+        $router->get('/attempts/{attemptId}/review',[$assessments,'review'],$read);
+        $router->get('/me/attempts',[$assessments,'mine'],$read);
+        $router->get('/me/analytics',[$assessments,'analytics'],$read);
+        $router->get('/me/wrong-questions',[$assessments,'wrong'],$read);
+        $router->get('/me/bookmarks',[$assessments,'bookmarks'],$read);
         $router->group('/auth', static function (Router $router) use ($controller, $auth, $active, $csrf, $json, $pdo): void {
             $router->post('/register', [$controller, 'register'], [$json]);
             $router->post('/login', [$controller, 'login'], [$json, new RateLimitMiddleware($pdo, 'login', 10, 900)]);

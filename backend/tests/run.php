@@ -3,6 +3,7 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/vendor/autoload.php';
 use Sinaesta\Shared\Http\Request; use Sinaesta\Shared\Http\Response; use Sinaesta\Shared\Http\Router;
 use Sinaesta\QuestionBank\Application\QuestionValidator; use Sinaesta\QuestionBank\Http\ParticipantQuestionResource;
+use Sinaesta\Assessment\Application\ScoringService;
 $failures=[];
 $assert=static function(bool $condition,string $message) use (&$failures): void { if(!$condition)$failures[]=$message; };
 $router=new Router();
@@ -24,4 +25,7 @@ $assert(isset($approvalErrors['main_explanation'],$approvalErrors['references'])
 $participant=ParticipantQuestionResource::from(['id'=>'q','question_type'=>'single_best_answer','stem'=>'S','clinical_vignette'=>null,'difficulty'=>'easy','main_explanation'=>'secret','options'=>[['id'=>'o','content'=>'A','is_correct'=>true,'explanation'=>'secret']],'media'=>[]]);
 $encoded=json_encode($participant,JSON_THROW_ON_ERROR);
 $assert(!str_contains($encoded,'is_correct')&&!str_contains($encoded,'explanation'),'participant resource omits answer key and explanations');
-if($failures!==[]){foreach($failures as $failure)fwrite(STDERR,"FAIL: {$failure}\n");exit(1);} echo "8 tests passed\n";
+$score=(new ScoringService())->calculate([['selected_option_id'=>'a','correct_option_id'=>'a','topic'=>'T','category'=>'C','difficulty'=>'easy'],['selected_option_id'=>'b','correct_option_id'=>'c','topic'=>'T','category'=>'C','difficulty'=>'hard'],['selected_option_id'=>null,'correct_option_id'=>'d','topic'=>'U','category'=>'C','difficulty'=>'hard']],90);
+$assert($score['correct']===1&&$score['incorrect']===1&&$score['unanswered']===1&&$score['percentage_score']===33.33,'server scoring counts all answer states');
+$assert($score['average_time_seconds']===30.0&&count($score['analytics'])===5,'duration and dimension analytics are calculated');
+if($failures!==[]){foreach($failures as $failure)fwrite(STDERR,"FAIL: {$failure}\n");exit(1);} echo "10 tests passed\n";
